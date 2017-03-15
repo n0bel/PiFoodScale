@@ -1,0 +1,9 @@
+# Configuration defaults for PiFoodScale
+#
+# You should not be editing this file for local changes
+# Instead you should change Config.yaml
+#
+Apis:
+  FatSecret:
+      ConsumerKey: "11111111111111111111111111111111"
+      SharedSecret: "22222222222222222222222222222222"
