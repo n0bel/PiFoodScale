@@ -4,12 +4,13 @@ import time
 import yaml
 import logging
 import logging.handlers
-from PyQt5.QtCore import (QObject, QThread, pyqtSlot, pyqtSignal,
-                          Qt, QVariant, QAbstractListModel,
-                          QModelIndex)
-from PyQt5.QtWidgets import (QWidget, QLabel, QMessageBox, QListView,
-                             QPushButton, QApplication,
-                             QGridLayout)
+import queue
+import datetime
+from fatsecret import Fatsecret
+from PyQt5.QtCore import (QObject, QThread, pyqtSlot, pyqtSignal, Qt)
+from PyQt5.QtWidgets import (QWidget, QLabel, QMessageBox, QListWidget,
+                             QPushButton, QApplication, QTableWidget,
+                             QGridLayout, QListWidgetItem, QTableWidgetItem)
 from PyQt5.QtGui import (QIcon)
 
 
@@ -17,11 +18,33 @@ class PiFoodScale(QWidget):
     config = {}
     fatsecret = None
 
-    def __init__(self, config, fatsecret):
-        super().__init__()
+    def __init__(self, config):
         self.config = config
-        self.fatsecret = fatsecret
+        super().__init__()
         self.initUI()
+        self.initWorkers()
+
+    def initWorkers(self):
+
+        self.scaleThread = QThread()
+        self.scaleReader = ReadScale(self.config)
+        self.scaleReader.data[str].connect(self.onData)
+        self.scaleReader.moveToThread(self.scaleThread)
+        self.scaleThread.started.connect(self.scaleReader.run)
+        self.scaleThread.start()
+
+        self.connected = False
+        self.fsThread = QThread()
+        self.fatsecret = FatSecretApi(self.config)
+        self.fatsecret.onLogin[dict].connect(self.onLogin)
+        self.fatsecret.onEaten[dict].connect(self.onEaten)
+        self.fatsecret.onEntries[dict].connect(self.onEntries)
+        self.fatsecret.moveToThread(self.fsThread)
+        self.fsThread.started.connect(self.fatsecret.run)
+        self.fsThread.start()
+        self.fatsecret.q.put({'func': 'login'})
+        self.fatsecret.q.put({'func': 'get_entries',
+                              'date': datetime.datetime.now()})
 
     def initUI(self):
         self.setStyleSheet('font-size: 15pt')
@@ -32,63 +55,124 @@ class PiFoodScale(QWidget):
         self.lblScale = QLabel('Scale', self)
         self.lblScale.setStyleSheet('border: 1px solid black')
 
-        self.modelEaten = EatenListModel(self)
-        self.listEaten = QListView()
-        self.listEaten.setModel(self.modelEaten)
-        self.listEaten.setMinimumWidth(400)
+        self.listEaten = QListWidget()
+        self.listEaten.setMinimumWidth(600)
+        self.listEaten.setMaximumHeight(200)
         self.listEaten.setStyleSheet("font-size: 10pt")
-        self.listEaten.clicked.connect(self.eatenClick)
-        # assuming the grid is 4 wide
-        # and 4 high
+        self.listEaten.itemClicked.connect(self.eatenClick)
+
+        self.tableToday = QTableWidget()
+        self.tableToday.setStyleSheet("font-size: 10pt")
+        self.tableToday.setMinimumWidth(600)
+        self.tableToday.itemClicked.connect(self.todayClick)
+
         grid = QGridLayout()
         # line 1 is the scale
         #   row, col, rowspan, colspan
         grid.addWidget(self.lblScale, 1, 1, 1, 4)
-        grid.addWidget(self.listEaten, 2, 1, 1, 4)
-        grid.addWidget(btnQuit, 3, 4)
+        grid.addWidget(self.tableToday, 2, 1, 1, 4)
+        grid.addWidget(self.listEaten, 3, 1, 1, 4)
+        grid.addWidget(btnQuit, 4, 4)
 
         self.setLayout(grid)
 
         self.setWindowTitle('PiFoodScale')
         self.setWindowIcon(QIcon('icon.jpg'))
 
-        self.thread = QThread()
-        self.reader = ReadScale(self.config)
-        self.reader.data[str].connect(self.onData)
-        self.reader.moveToThread(self.thread)
-        self.thread.started.connect(self.reader.run)
-        self.thread.start()
-
         self.show()
         # self.showFullScreen()
+
+    def checkError(self, result):
+        if 'error' in result:
+            QMessageBox.critical(None, "Fatsecret exception",
+                                 result['error'], QMessageBox.Ok)
+            return True
 
     @pyqtSlot(str)
     def onData(self, data):
         self.lblScale.setText(data)
 
-    @pyqtSlot(QModelIndex)
-    def eatenClick(self, index):
-        print(index.data())
-        self.modelEaten = EatenListModel(self)
-        self.modelEaten.eatenList = ["fff", "ggg"]
-        self.listEaten.setModel(self.modelEaten)
+    @pyqtSlot(QListWidgetItem)
+    def eatenClick(self, item):
+        print(item.text(), item.data(Qt.UserRole))
 
+    @pyqtSlot(QTableWidgetItem)
+    def todayClick(self, item):
+        print(item.text())
 
-class EatenListModel(QAbstractListModel):
-    def __init__(self, parent=None, *args):
-        super().__init__(parent, *args)
-        self.eatenList = ["one", "two", "three", "four",
-                          "five", "six", "seven", "eight",
-                          "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"]
-
-    def rowCount(self, parent=QModelIndex()):
-        return len(self.eatenList)
-
-    def data(self, index, role):
-        if index.isValid() and role == Qt.DisplayRole:
-            return QVariant(self.eatenList[index.row()])
+    @pyqtSlot(dict)
+    def onLogin(self, result):
+        # print("onLogin result =", result)
+        if self.checkError(result):
+            return
+        self.connected = result['login']
+        if result['login']:
+            self.setWindowTitle("PiFoodScale (connected)")
+            self.fatsecret.q.put({'func': 'get_eaten'})
         else:
-            return QVariant()
+            self.setWindowTitle("PiFoodScale (disconnected)")
+
+    @pyqtSlot(dict)
+    def onEaten(self, result):
+        # print("onEaten result =", result)
+        if self.checkError(result):
+            return
+        self.listEaten.clear()
+        for f in result['data']:
+            s = ''
+            if 'brand_name' in f:
+                s = f['brand_name'] + ' '
+            s = s + f['food_name']
+            qi = QListWidgetItem(s)
+            qi.setData(Qt.UserRole, f['food_id'])
+            self.listEaten.addItem(qi)
+
+    @pyqtSlot(dict)
+    def onEntries(self, result):
+        print("onEntries result =", result)
+        if self.checkError(result):
+            return
+        self.tableToday.clear()
+        result = result['data']
+        rows = len(result)
+        self.tableToday.setColumnCount(3)
+        self.tableToday.setHorizontalHeaderLabels(['Item', 'Qty', 'Cal'])
+        self.tableToday.setRowCount(rows)
+        i = -1
+        for f in result:
+            i = i + 1
+            food = f['food']
+            entry = f['entry']
+            s = ''
+            if 'brand_name' in food:
+                s = food['brand_name'] + ' '
+            s = s + food['food_name']
+            qi = QTableWidgetItem(s)
+            qi.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+            # qi.setData(Qt.UserRole, f['food_id'])
+            self.tableToday.setItem(i, 0, qi)
+            if 'number_of_units' in entry:
+                q = float(entry['number_of_units'])
+                qs = str(q)
+                servid = entry['serving_id']
+                servings = food['servings']
+                if type(servings) is dict:
+                    servings = [servings]
+                for serv in servings:
+                    sss = serv['serving']
+                    if sss['serving_id'] == servid:
+                        su = sss['metric_serving_unit']
+                        sa = sss['metric_serving_amount']
+                        qs = "{0:.1f}".format(q * float(sa)) + su
+                qi = QTableWidgetItem(qs)
+                qi.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                self.tableToday.setItem(i, 1, qi)
+            if 'calories' in entry:
+                qi = QTableWidgetItem(entry['calories'])
+                qi.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                self.tableToday.setItem(i, 2, qi)
+
+        self.tableToday.resizeColumnsToContents()
 
 
 class ReadScale(QObject):
@@ -197,22 +281,80 @@ class Config():
         self.config.merge(yaml.load(open("Config.yaml", "r")))
 
 
-class FatSecretApi():
+class FatSecretApi(QObject):
+
+    q = queue.Queue()
 
     def __init__(self, config):
+        super().__init__()
         self.fsConfig = config.config['Apis']['FatSecret']
+        self.foods = {}
 
-    def login(self):
-        from fatsecret import Fatsecret
+    def run(self):
+        while(True):
+            item = self.q.get()
+            self.dispatch(item)
+            self.q.task_done()
 
-        self.fs = Fatsecret(self.fsConfig['ConsumerKey'],
-                            self.fsConfig['SharedSecret'],
-                            self.fsConfig['SessionToken'])
+    def dispatch(self, item):
+        if item is None:
+            return
+        elif item['func'] == 'login':
+            self.login(item)
+        elif item['func'] == 'get_eaten':
+            self.get_eaten(item)
+        elif item['func'] == 'get_entries':
+            self.get_entries(item)
 
-        # params = {'method': 'foods.get_favorites', 'format': 'json'}
-        # response = self.fs.session.get(self.fs.api_url, params=params)
-        # print(response.json())
-        # return self.fs.valid_response(response)
+    onLogin = pyqtSignal(dict)
+
+    def login(self, params):
+        try:
+            self.fs = Fatsecret(self.fsConfig['ConsumerKey'],
+                                self.fsConfig['SharedSecret'],
+                                self.fsConfig['SessionToken'])
+            result = self.fs.profile_get()
+            self.onLogin.emit({'login': True, 'profile': result})
+        except Exception as e:
+            logging.exception('Fatsecret login exception:')
+            self.onLogin.emit({'login': False, 'error': str(e)})
+
+    onEaten = pyqtSignal(dict)
+
+    def get_eaten(self, params):
+        try:
+            result = self.fs.foods_get_recently_eaten()
+            if result is None:
+                result = []
+            result3 = []
+            for f in result:
+                result2 = self.fs.food_get(f['food_id'])
+                self.foods[f['food_id']] = result2
+                result3.append(result2)
+            self.onEaten.emit({'data': result3})
+        except Exception as e:
+            logging.exception('Fatsecret get_eaten exception:')
+            self.onEaten.emit({'error': str(e)})
+
+    onEntries = pyqtSignal(dict)
+
+    def get_entries(self, params):
+        try:
+            result = self.fs.food_entries_get(date=params['date'])
+            if result is None:
+                result = []
+            result3 = []
+            for f in result:
+                if f['food_id'] in self.foods:
+                    result2 = self.foods[f['food_id']]
+                else:
+                    result2 = self.fs.food_get(f['food_id'])
+                self.foods[f['food_id']] = result2
+                result3.append({'entry': f, 'food': result2})
+            self.onEntries.emit({'data': result3})
+        except Exception as e:
+            logging.exception('Fatsecret get_entries exception:')
+            self.onEntries.emit({'error': str(e)})
 
 
 if __name__ == '__main__':
@@ -230,21 +372,13 @@ if __name__ == '__main__':
         app = QApplication(sys.argv)
         try:
             config = Config()
-            print(vars(config))
+            # print(vars(config))
         except Exception as e:
             logging.exception('PiFoodScale Config Error:')
             QMessageBox.critical(None, "PiFoodScale Config Error",
                                  str(e), QMessageBox.Ok)
             sys.exit(1)
-        try:
-            fatsecret = FatSecretApi(config)
-            fatsecret.login()
-        except Exception as e:
-            logging.exception('PiFoodScale FatSecret Connect Error:')
-            QMessageBox.critical(None, "PiFoodScale FatSecret Connect Error",
-                                 str(e), QMessageBox.Ok)
-            sys.exit(1)
-        ex = PiFoodScale(config, fatsecret)
+        ex = PiFoodScale(config)
         sys.exit(app.exec_())
     except SystemExit:
         pass
