@@ -6,6 +6,7 @@ import logging
 import logging.handlers
 import queue
 import datetime
+import re
 from fatsecret import Fatsecret
 from PyQt5.QtCore import (QObject, QThread, pyqtSlot, pyqtSignal, Qt)
 from PyQt5.QtWidgets import (QWidget, QLabel, QMessageBox, QListWidget,
@@ -25,6 +26,8 @@ class PiFoodScale(QWidget):
         self.initWorkers()
 
     def initWorkers(self):
+
+        self.currentFood = None
 
         self.scaleThread = QThread()
         self.scaleReader = ReadScale(self.config)
@@ -66,13 +69,47 @@ class PiFoodScale(QWidget):
         self.tableToday.setMinimumWidth(600)
         self.tableToday.itemClicked.connect(self.todayClick)
 
+        self.lblAmount = QLabel('', self)
+        self.lblName = QLabel('', self)
+
+        self.lblCalories = QLabel('', self)
+        self.lblProtein = QLabel('', self)
+        self.lblFat = QLabel('', self)
+        self.lblCarbs = QLabel('', self)
+
+        self.lblTCalories = QLabel('', self)
+        self.lblTProtein = QLabel('', self)
+        self.lblTFat = QLabel('', self)
+        self.lblTCarbs = QLabel('', self)
+
         grid = QGridLayout()
         # line 1 is the scale
         #   row, col, rowspan, colspan
-        grid.addWidget(self.lblScale, 1, 1, 1, 4)
-        grid.addWidget(self.tableToday, 2, 1, 1, 4)
-        grid.addWidget(self.listEaten, 3, 1, 1, 4)
-        grid.addWidget(btnQuit, 4, 4)
+        grid.addWidget(self.lblScale, 1, 1, 1, 5)
+
+        grid.addWidget(self.lblAmount,           2, 1, 1, 1, Qt.AlignRight)
+        grid.addWidget(self.lblName,             2, 2, 1, 4)
+
+        grid.addWidget(QLabel('Calories', self), 3, 2, 1, 1, Qt.AlignCenter)
+        grid.addWidget(QLabel('Protein', self),  3, 3, 1, 1, Qt.AlignCenter)
+        grid.addWidget(QLabel('Fat', self),      3, 4, 1, 1, Qt.AlignCenter)
+        grid.addWidget(QLabel('Carbs', self),    3, 5, 1, 1, Qt.AlignCenter)
+
+        grid.addWidget(QLabel('This', self),     4, 1, 1, 1, Qt.AlignRight)
+        grid.addWidget(self.lblCalories,         4, 2, 1, 1, Qt.AlignRight)
+        grid.addWidget(self.lblProtein,          4, 3, 1, 1, Qt.AlignRight)
+        grid.addWidget(self.lblFat,              4, 4, 1, 1, Qt.AlignRight)
+        grid.addWidget(self.lblCarbs,            4, 5, 1, 1, Qt.AlignRight)
+
+        grid.addWidget(QLabel('Today', self),    5, 1, 1, 1, Qt.AlignRight)
+        grid.addWidget(self.lblTCalories,        5, 2, 1, 1, Qt.AlignRight)
+        grid.addWidget(self.lblTProtein,         5, 3, 1, 1, Qt.AlignRight)
+        grid.addWidget(self.lblTFat,             5, 4, 1, 1, Qt.AlignRight)
+        grid.addWidget(self.lblTCarbs,           5, 5, 1, 1, Qt.AlignRight)
+
+        grid.addWidget(self.tableToday, 6, 1, 1, 5)
+        grid.addWidget(self.listEaten, 7, 1, 1, 5)
+        grid.addWidget(btnQuit, 8, 5)
 
         self.setLayout(grid)
 
@@ -88,13 +125,51 @@ class PiFoodScale(QWidget):
                                  result['error'], QMessageBox.Ok)
             return True
 
+    def doCompute(self):
+        rwgt = self.lblScale.text()
+        print(rwgt)
+        print(self.currentFood)
+        m = re.match("([0-9\.]+)g", rwgt)
+        if m is not None:
+            wgt = float(m.group(1))
+            servings = self.currentFood['servings']
+            if type(servings) is dict:
+                servings = servings['serving']
+            if type(servings) is dict:
+                servings = [servings]
+            serving = servings[0]
+            print(serving)
+            samt = float(serving['metric_serving_amount'])
+            sfact = wgt / samt
+            print('sfact=', sfact)
+            calories = float(serving['calories']) * sfact
+            carbs = float(serving['carbohydrate']) * sfact
+            protein = float(serving['protein']) * sfact
+            fat = float(serving['fat']) * sfact
+            self.lblAmount.setText("%.0f" % wgt)
+            self.lblCalories.setText("%.1f" % calories)
+            self.lblCarbs.setText("%.1f" % carbs)
+            self.lblProtein.setText("%.1f" % protein)
+            self.lblFat.setText("%.1f" % fat)
+        else:
+            self.lblAmount.setText("")
+            self.lblCalories.setText("")
+            self.lblProtein.setText("")
+            self.lblCarbs.setText("")
+            self.lblFat.setText("")
+
     @pyqtSlot(str)
     def onData(self, data):
         self.lblScale.setText(data)
+        if self.currentFood is not None:
+            self.doCompute()
 
     @pyqtSlot(QListWidgetItem)
     def eatenClick(self, item):
         print(item.text(), item.data(Qt.UserRole))
+        self.lblName.setText(item.text())
+        self.currentFood = self.fatsecret.foods[item.data(Qt.UserRole)]
+        self.doCompute()
 
     @pyqtSlot(QTableWidgetItem)
     def todayClick(self, item):
@@ -156,6 +231,8 @@ class PiFoodScale(QWidget):
                 qs = str(q)
                 servid = entry['serving_id']
                 servings = food['servings']
+                if type(servings) is dict:
+                    servings = servings['serving']
                 if type(servings) is dict:
                     servings = [servings]
                 for serv in servings:
