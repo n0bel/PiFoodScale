@@ -354,7 +354,7 @@ class Config():
     def readConfig(self):
         import mergedict
         self.config = mergedict.ConfigDict(
-                                yaml.load(open("Config.Defaults.yaml", "r")))
+                                yaml.load(open("Config.defaults.yaml", "r")))
         self.config.merge(yaml.load(open("Config.yaml", "r")))
 
 
