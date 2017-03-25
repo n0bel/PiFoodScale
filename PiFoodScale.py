@@ -112,12 +112,10 @@ class PiFoodScale(QWidget):
         grid.addWidget(self.lblScale, 1, 1, 1, 5)
 
         grid.addWidget(self.txtAmount,           2, 1, 1, 1)
-        grid.addWidget(self.lblName,             2, 2, 1, 4)
+        grid.addWidget(self.lblName,             2, 2, 1, 2)
 
-        grid.addWidget(self.lblServingAmount,    3, 1, 1, 1)
-        grid.addWidget(self.lblServing,          3, 2, 1, 2)
-        grid.addWidget(self.btnAdd,              3, 4, 1, 1)
-        grid.addWidget(self.btnDel,              3, 5, 1, 1)
+        grid.addWidget(self.lblServingAmount,    2, 4, 1, 1, Qt.AlignCenter)
+        grid.addWidget(self.lblServing,          2, 5, 1, 1, Qt.AlignCenter)
 
         grid.addWidget(QLabel('Calories', self), 4, 2, 1, 1, Qt.AlignCenter)
         grid.addWidget(QLabel('Protein', self),  4, 3, 1, 1, Qt.AlignCenter)
@@ -138,6 +136,8 @@ class PiFoodScale(QWidget):
 
         grid.addWidget(self.tableToday, 7, 1, 1, 5)
         grid.addWidget(self.listEaten, 8, 1, 1, 5)
+        grid.addWidget(self.btnAdd,              9, 1, 1, 1)
+        grid.addWidget(self.btnDel,              9, 2, 1, 1)
         grid.addWidget(btnQuit, 9, 5)
 
         self.setLayout(grid)
