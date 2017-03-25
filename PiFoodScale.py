@@ -59,7 +59,7 @@ class PiFoodScale(QWidget):
         self.txtAmount.textChanged.connect(self.onAmountChanged)
 
     def initUI(self):
-        self.setStyleSheet('font-size: 15pt')
+        self.setStyleSheet('font-size: 12pt')
 
         btnQuit = QPushButton('Quit', self)
         btnQuit.clicked.connect(self.close)
@@ -77,11 +77,11 @@ class PiFoodScale(QWidget):
         self.listEaten = QListWidget()
         self.listEaten.setMinimumWidth(600)
         self.listEaten.setMaximumHeight(200)
-        self.listEaten.setStyleSheet("font-size: 12pt")
+        self.listEaten.setStyleSheet("font-size: 10pt")
         self.listEaten.itemClicked.connect(self.eatenClick)
 
         self.tableToday = QTableWidget()
-        self.tableToday.setStyleSheet("font-size: 12pt")
+        self.tableToday.setStyleSheet("font-size: 10pt")
         self.tableToday.setMinimumWidth(600)
         self.tableToday.itemClicked.connect(self.todayClick)
 
