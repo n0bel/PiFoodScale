@@ -59,7 +59,7 @@ class PiFoodScale(QWidget):
         self.txtAmount.textChanged.connect(self.onAmountChanged)
 
     def initUI(self):
-        self.setStyleSheet('font-size: 10pt')
+        self.setStyleSheet('font-size: 12px')
 
         btnQuit = QPushButton('Quit', self)
         btnQuit.clicked.connect(self.close)
@@ -77,11 +77,14 @@ class PiFoodScale(QWidget):
         self.listEaten = QListWidget()
         self.listEaten.setMinimumWidth(600)
         self.listEaten.setMaximumHeight(200)
-        self.listEaten.setStyleSheet("font-size: 10pt")
+        self.listEaten.setStyleSheet("font-size: 10px;")
         self.listEaten.itemClicked.connect(self.eatenClick)
 
         self.tableToday = QTableWidget()
-        self.tableToday.setStyleSheet("font-size: 10pt")
+        self.tableToday.setStyleSheet("font-size: 10px;")
+        vh = self.tableToday.verticalHeader()
+        vh.setDefaultSectionSize(vh.fontMetrics().height()+5)
+        vh.setVisible(False)
         self.tableToday.setMinimumWidth(600)
         self.tableToday.itemClicked.connect(self.todayClick)
 
@@ -121,17 +124,17 @@ class PiFoodScale(QWidget):
         grid.addWidget(QLabel('Fat', self),      4, 4, 1, 1, Qt.AlignCenter)
         grid.addWidget(QLabel('Carbs', self),    4, 5, 1, 1, Qt.AlignCenter)
 
-        grid.addWidget(QLabel('This', self),     5, 1, 1, 1, Qt.AlignRight)
-        grid.addWidget(self.lblCalories,         5, 2, 1, 1, Qt.AlignRight)
-        grid.addWidget(self.lblProtein,          5, 3, 1, 1, Qt.AlignRight)
-        grid.addWidget(self.lblFat,              5, 4, 1, 1, Qt.AlignRight)
-        grid.addWidget(self.lblCarbs,            5, 5, 1, 1, Qt.AlignRight)
+        grid.addWidget(QLabel('This', self),     5, 1, 1, 1, Qt.AlignCenter)
+        grid.addWidget(self.lblCalories,         5, 2, 1, 1, Qt.AlignCenter)
+        grid.addWidget(self.lblProtein,          5, 3, 1, 1, Qt.AlignCenter)
+        grid.addWidget(self.lblFat,              5, 4, 1, 1, Qt.AlignCenter)
+        grid.addWidget(self.lblCarbs,            5, 5, 1, 1, Qt.AlignCenter)
 
-        grid.addWidget(QLabel('Today', self),    6, 1, 1, 1, Qt.AlignRight)
-        grid.addWidget(self.lblTCalories,        6, 2, 1, 1, Qt.AlignRight)
-        grid.addWidget(self.lblTProtein,         6, 3, 1, 1, Qt.AlignRight)
-        grid.addWidget(self.lblTFat,             6, 4, 1, 1, Qt.AlignRight)
-        grid.addWidget(self.lblTCarbs,           6, 5, 1, 1, Qt.AlignRight)
+        grid.addWidget(QLabel('Today', self),    6, 1, 1, 1, Qt.AlignCenter)
+        grid.addWidget(self.lblTCalories,        6, 2, 1, 1, Qt.AlignCenter)
+        grid.addWidget(self.lblTProtein,         6, 3, 1, 1, Qt.AlignCenter)
+        grid.addWidget(self.lblTFat,             6, 4, 1, 1, Qt.AlignCenter)
+        grid.addWidget(self.lblTCarbs,           6, 5, 1, 1, Qt.AlignCenter)
 
         grid.addWidget(self.tableToday, 7, 1, 1, 5)
         grid.addWidget(self.listEaten, 8, 1, 1, 5)
