@@ -59,7 +59,7 @@ class PiFoodScale(QWidget):
         self.txtAmount.textChanged.connect(self.onAmountChanged)
 
     def initUI(self):
-        self.setStyleSheet('font-size: 12pt')
+        self.setStyleSheet('font-size: 10pt')
 
         btnQuit = QPushButton('Quit', self)
         btnQuit.clicked.connect(self.close)
@@ -103,6 +103,7 @@ class PiFoodScale(QWidget):
         self.lblTCarbs = QLabel('', self)
 
         grid = QGridLayout()
+        grid.setSpacing(1)
         # line 1 is the scale
         #   row, col, rowspan, colspan
         grid.addWidget(self.lblScale, 1, 1, 1, 5)
