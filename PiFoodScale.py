@@ -83,7 +83,7 @@ class PiFoodScale(QWidget):
         self.tableToday = QTableWidget()
         self.tableToday.setStyleSheet("font-size: 10px;")
         vh = self.tableToday.verticalHeader()
-        vh.setDefaultSectionSize(vh.fontMetrics().height()+5)
+        vh.setDefaultSectionSize(12)
         vh.setVisible(False)
         self.tableToday.setMinimumWidth(600)
         self.tableToday.itemClicked.connect(self.todayClick)
